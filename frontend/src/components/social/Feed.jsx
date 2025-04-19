@@ -20,8 +20,6 @@ const Feed = () => {
                     }
                 });
 
-                console.log('Feed.jsx res : ', res);
-
                 if (res.data.success) {
                     setPosts(res?.data?.data); // assuming your backend returns data inside `data`
                 } else {
@@ -59,7 +57,7 @@ const Feed = () => {
                     key={post._id}
                     id={post._id}
                     author={post.user}
-                    content={post.content}
+                    content={post?.text}
                     image={post.image}
                     createdAt={post.createdAt}
                     likes={post.likes}

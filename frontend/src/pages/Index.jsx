@@ -19,6 +19,7 @@ const Index = () => {
     const token = localStorage.getItem('token'); // assume JWT is stored in localStorage
     const [postImage, setPostImage] = useState(null);
     const fileInputRef = useRef(null);
+    const [uploading, setUploading] = useState(false);
 
     // Fetch current user profile
     useEffect(() => {
@@ -44,6 +45,8 @@ const Index = () => {
     // Handle post creation
     const handleCreatePost = async e => {
         e.preventDefault();
+
+        console.log('index.js = ', postContent);
 
         if (!postContent.trim()) {
             alert('Post content cannot be empty.');
@@ -100,62 +103,47 @@ const Index = () => {
         }
     };
 
+    const handleProfilePicture = async () => {
+        const file = fileInputRef.current.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('image', file);
+        setUploading(true);
+
+        try {
+            const res = await axios.put(
+                `${BASE_URL}/api/users/profile-picture`,
+                formData,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'multipart/form-data'
+                    }
+                }
+            );
+
+            if (res.data.success) {
+                setUser(res.data.data); // Update profile picture
+            } else {
+                alert('Failed to update profile picture.');
+            }
+        } catch (err) {
+            console.error('Error uploading image:', err);
+            alert('Something went wrong. Please try again.');
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const triggerFileSelect = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
+        }
+    };
+
     return (
         <div className="min-h-screen bg-gray-100">
-            <header className="bg-white shadow-sm">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between h-16">
-                        <h1 className="text-xl font-bold text-gray-900">
-                            SocialSphere
-                        </h1>
-                        <div className="hidden md:block space-x-4">
-                            <Link
-                                to="/"
-                                className="text-gray-900 hover:text-gray-700"
-                            >
-                                Home
-                            </Link>
-                            <Link
-                                to="/profile"
-                                className="text-gray-900 hover:text-gray-700"
-                            >
-                                Profile
-                            </Link>
-                            <Link
-                                to="/friends"
-                                className="text-gray-900 hover:text-gray-700"
-                            >
-                                Friends
-                            </Link>
-                        </div>
-                        <div>
-                            {isAuthenticated ? (
-                                <Button
-                                    variant="outline"
-                                    onClick={() => {
-                                        setIsAuthenticated(false);
-                                        localStorage.removeItem('token');
-                                    }}
-                                >
-                                    Sign Out
-                                </Button>
-                            ) : (
-                                <div className="space-x-2">
-                                    <Link to="/login">
-                                        <Button variant="outline">
-                                            Sign In
-                                        </Button>
-                                    </Link>
-                                    <Link to="/register">
-                                        <Button>Register</Button>
-                                    </Link>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </header>
-
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* PROFILE CARD */}
@@ -166,14 +154,36 @@ const Index = () => {
                             </h2>
 
                             <div className="flex flex-col items-center space-y-3">
-                                {user?.profilePicture ? (
-                                    <img
-                                        src={user?.profilePicture}
-                                        alt="profile"
-                                        className="w-20 h-20 rounded-full object-cover"
-                                    />
-                                ) : (
-                                    <div className="w-20 h-20 rounded-full bg-gray-300"></div>
+                                {/* upload profle  */}
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    ref={fileInputRef}
+                                    onChange={handleProfilePicture}
+                                />
+                                <div
+                                    className="w-20 h-20 rounded-full bg-gray-300 overflow-hidden cursor-pointer hover:opacity-80 transition"
+                                    onClick={triggerFileSelect}
+                                    title="Click to upload new photo"
+                                >
+                                    {user?.profilePicture ? (
+                                        <img
+                                            src={user.profilePicture}
+                                            alt="Profile"
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-sm text-gray-600">
+                                            Upload
+                                        </div>
+                                    )}
+                                </div>
+                                {/* Optional: show loading spinner/text */}
+                                {uploading && (
+                                    <span className="text-sm text-gray-500">
+                                        Uploading...
+                                    </span>
                                 )}
                                 <h3 className="font-medium">
                                     {user?.name || 'Guest User'}

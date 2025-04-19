@@ -98,6 +98,43 @@ router.get('/', protect, async (req, res) => {
     }
 });
 
+// @route get all posts
+// @desc get all post of all users and a single page maximum 10 post post will be displayed , pagination will be applied
+// @access public route
+// @only authentic user can follow or unfollow a user and that count will be displayed of that user
+
+router.get('/all', async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1; // Default to page 1
+        const limit = 10; // Maximum 10 posts per page
+        const skip = (page - 1) * limit;
+
+        // Get all posts with pagination
+        const posts = await Post.find()
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .populate('user', 'name username profilePicture')
+            .populate('comments.user', 'name username profilePicture');
+
+        // Get total post count for pagination metadata
+        const totalPosts = await Post.countDocuments();
+
+        res.status(200).json({
+            success: true,
+            count: posts.length,
+            totalPages: Math.ceil(totalPosts / limit),
+            currentPage: page,
+            data: posts
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+});
+
 // @route   GET /api/posts/user/:userId
 // @desc    Get all posts by a specific user
 // @access  Private

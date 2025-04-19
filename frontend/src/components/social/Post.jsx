@@ -21,13 +21,6 @@ const Post = ({
     setComments,
     onDelete
 }) => {
-    console.log('Post.jsx id : ', id);
-    console.log('Post.jsx author : ', author);
-    console.log('Post.jsx content : ', content);
-    console.log('Post.jsx image : ', image);
-    console.log('Post.jsx createdAt : ', createdAt);
-    console.log('Post.jsx likes : ', likes);
-    console.log('Post.jsx comments : ', comments);
     const [isLiked, setIsLiked] = useState(false);
     const [showComments, setShowComments] = useState(false);
     const [commentText, setCommentText] = useState('');
