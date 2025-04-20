@@ -47,11 +47,6 @@ mongoose
         console.error('MongoDB connection error:', error);
     });
 
-// Route for serving React app in production
-// app.get('*', (req, res) => {
-//     res.sendFile(path.join(__dirname, '../dist/index.html'));
-// });
-
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);

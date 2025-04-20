@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import { BASE_URL } from './../../utils/api';
 
 const AuthContext = createContext(null);
 
@@ -17,7 +18,7 @@ export const AuthProvider = ({ children }) => {
         }
 
         try {
-            const response = await axios.get('/api/users/me', {
+            const response = await axios.get(`${BASE_URL}/api/users/me`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setUser(response.data);
@@ -32,7 +33,7 @@ export const AuthProvider = ({ children }) => {
 
     const signin = async (email, password) => {
         try {
-            const response = await axios.post('/api/auth/signin', {
+            const response = await axios.post(`${BASE_URL}/api/auth/signin`, {
                 email,
                 password
             });
@@ -49,7 +50,7 @@ export const AuthProvider = ({ children }) => {
 
     const signup = async (name, email, password) => {
         try {
-            const response = await axios.post('/api/auth/signup', {
+            const response = await axios.post(`${BASE_URL}/api/auth/signup`, {
                 name,
                 email,
                 password
@@ -77,12 +78,16 @@ export const AuthProvider = ({ children }) => {
             const token = localStorage.getItem('token');
             if (!token) throw new Error('No authentication token');
 
-            const response = await axios.put('/api/users/update', userData, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'multipart/form-data'
+            const response = await axios.put(
+                `${BASE_URL}/api/users/update`,
+                userData,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'multipart/form-data'
+                    }
                 }
-            });
+            );
 
             setUser(prev => (prev ? { ...prev, ...response.data } : null));
             toast.success('Profile updated successfully!');

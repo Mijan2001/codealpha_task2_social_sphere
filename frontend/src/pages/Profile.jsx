@@ -6,6 +6,7 @@ import { PostProvider } from '../contexts/PostContext';
 import ProfileCard from '../components/ProfileCard';
 import PostCard from '../components/PostCard';
 import axios from 'axios';
+import { BASE_URL } from './../../utils/api';
 
 const Profile = () => {
     const { id } = useParams();
@@ -24,9 +25,12 @@ const Profile = () => {
                 if (!token) throw new Error('No authentication token');
 
                 // Fetch user profile
-                const userResponse = await axios.get(`/api/users/${id}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const userResponse = await axios.get(
+                    `${BASE_URL}/api/users/${id}`,
+                    {
+                        headers: { Authorization: `Bearer ${token}` }
+                    }
+                );
                 setProfileUser(userResponse.data);
 
                 // Check if current user follows this user
@@ -54,7 +58,7 @@ const Profile = () => {
 
             const endpoint = isFollowing ? 'unfollow' : 'follow';
             const response = await axios.post(
-                `/api/users/${id}/${endpoint}`,
+                `${BASE_URL}/api/users/${id}/${endpoint}`,
                 {},
                 {
                     headers: { Authorization: `Bearer ${token}` }

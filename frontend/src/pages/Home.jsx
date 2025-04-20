@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePost } from '../contexts/PostContext';
 import { PostProvider } from '../contexts/PostContext';
 import axios from 'axios';
+import { BASE_URL } from './../../utils/api';
 
 const Home = () => {
     const { user } = useAuth();
@@ -14,20 +15,17 @@ const Home = () => {
     const [profileUser, setProfileUser] = useState(null);
     const isCurrentUser = profileUser?._id === user?._id;
     useEffect(() => {
-        console.log('user home.js==>', user?.profileImage);
-        console.log('user id===========>', posts);
         fetchPosts();
     }, [isCurrentUser]);
 
     const handleFollow = async id => {
-        console.log('clicked============', id);
         try {
             const token = localStorage.getItem('token');
             if (!token) throw new Error('No authentication token');
 
             const endpoint = isFollowing ? 'unfollow' : 'follow';
             const response = await axios.post(
-                `/api/users/${id}/${endpoint}`,
+                `${BASE_URL}/api/users/${id}/${endpoint}`,
                 {},
                 {
                     headers: { Authorization: `Bearer ${token}` }
@@ -94,7 +92,7 @@ const Home = () => {
                                 </div>
                             ))}
                         </div>
-                    ) : posts.length > 0 ? (
+                    ) : Array.isArray(posts) && posts.length > 0 ? (
                         posts?.map(post => (
                             <PostCard
                                 key={post._id}

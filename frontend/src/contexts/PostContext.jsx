@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { useAuth } from './AuthContext';
+import { BASE_URL } from './../../utils/api';
 
 const PostContext = createContext(null);
 
@@ -22,7 +23,7 @@ export const PostProvider = ({ children }) => {
             const token = localStorage.getItem('token');
             if (!token) throw new Error('No authentication token');
 
-            const response = await axios.get('/api/posts', {
+            const response = await axios.get(`${BASE_URL}/api/posts`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setPosts(response.data);
@@ -39,9 +40,12 @@ export const PostProvider = ({ children }) => {
             const token = localStorage.getItem('token');
             if (!token) throw new Error('No authentication token');
 
-            const response = await axios.get(`/api/posts/user/${userId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await axios.get(
+                `${BASE_URL}/api/posts/user/${userId}`,
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
+            );
             return response.data;
         } catch (error) {
             console.error('Error fetching user posts:', error);
@@ -61,12 +65,16 @@ export const PostProvider = ({ children }) => {
                 formData.append('image', image);
             }
 
-            const response = await axios.post('/api/posts', formData, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'multipart/form-data'
+            const response = await axios.post(
+                `${BASE_URL}/api/posts`,
+                formData,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'multipart/form-data'
+                    }
                 }
-            });
+            );
 
             setPosts(prevPosts => [response.data, ...prevPosts]);
             toast.success('Post created successfully!');
@@ -82,7 +90,7 @@ export const PostProvider = ({ children }) => {
             const token = localStorage.getItem('token');
             if (!token) throw new Error('No authentication token');
 
-            await axios.delete(`/api/posts/${postId}`, {
+            await axios.delete(`${BASE_URL}/api/posts/${postId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
@@ -103,7 +111,7 @@ export const PostProvider = ({ children }) => {
             if (!token) throw new Error('No authentication token');
 
             const response = await axios.post(
-                `/api/posts/${postId}/like`,
+                `${BASE_URL}/api/posts/${postId}/like`,
                 {},
                 {
                     headers: { Authorization: `Bearer ${token}` }
@@ -130,7 +138,7 @@ export const PostProvider = ({ children }) => {
             if (!token) throw new Error('No authentication token');
 
             const response = await axios.post(
-                `/api/posts/${postId}/unlike`,
+                `${BASE_URL}/api/posts/${postId}/unlike`,
                 {},
                 {
                     headers: { Authorization: `Bearer ${token}` }
@@ -157,7 +165,7 @@ export const PostProvider = ({ children }) => {
             if (!token) throw new Error('No authentication token');
 
             const response = await axios.post(
-                `/api/posts/${postId}/comment`,
+                `${BASE_URL}/api/posts/${postId}/comment`,
                 { text },
                 {
                     headers: { Authorization: `Bearer ${token}` }
