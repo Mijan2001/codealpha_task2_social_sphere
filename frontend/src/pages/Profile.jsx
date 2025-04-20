@@ -1,117 +1,163 @@
-import React from 'react';
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { usePost } from '../contexts/PostContext';
+import { PostProvider } from '../contexts/PostContext';
+import ProfileCard from '../components/ProfileCard';
+import PostCard from '../components/PostCard';
 import axios from 'axios';
 
 const Profile = () => {
-    const [profile, setProfile] = useState(null);
-    const [error, setError] = useState(null);
+    const { id } = useParams();
+    const { user: currentUser } = useAuth();
+    const { fetchUserPosts } = usePost();
+    const [loading, setLoading] = useState(true);
+    const [profileUser, setProfileUser] = useState(null);
+    const [userPosts, setUserPosts] = useState([]);
+    const [isFollowing, setIsFollowing] = useState(false);
 
     useEffect(() => {
-        const fetchProfile = async () => {
+        const fetchUserData = async () => {
             try {
-                const response = await axios.get('/api/users/me', {
-                    headers: {
-                        Authorization: `Bearer ${localStorage.getItem('token')}`
-                    }
+                setLoading(true);
+                const token = localStorage.getItem('token');
+                if (!token) throw new Error('No authentication token');
+
+                // Fetch user profile
+                const userResponse = await axios.get(`/api/users/${id}`, {
+                    headers: { Authorization: `Bearer ${token}` }
                 });
-                setProfile(response.data?.data || response.data || null);
-            } catch (err) {
-                setError(
-                    err.response?.data?.message ||
-                        err.message ||
-                        'An error occurred'
-                );
+                setProfileUser(userResponse.data);
+
+                // Check if current user follows this user
+                setIsFollowing(!!userResponse.data.isFollowed);
+
+                // Fetch user posts
+                const posts = await fetchUserPosts(id);
+                setUserPosts(posts);
+            } catch (error) {
+                console.error('Error fetching profile data:', error);
+            } finally {
+                setLoading(false);
             }
         };
 
-        if (localStorage.getItem('token')) {
-            fetchProfile();
-        } else {
-            setError('Authentication token is missing');
+        if (id) {
+            fetchUserData();
         }
-    }, []);
+    }, [id, fetchUserPosts]);
 
-    if (error) {
-        return <div>Error: {error}</div>;
-    }
+    const handleFollow = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) throw new Error('No authentication token');
 
-    if (!profile) {
-        return <div>Loading...</div>;
-    }
+            const endpoint = isFollowing ? 'unfollow' : 'follow';
+            const response = await axios.post(
+                `/api/users/${id}/${endpoint}`,
+                {},
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
+            );
 
-    return (
-        <div
-            style={{
-                maxWidth: '600px',
-                margin: '0 auto',
-                padding: '20px',
-                fontFamily: 'Arial, sans-serif'
-            }}
-        >
-            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                <img
-                    src={
-                        profile.profilePhoto ||
-                        'https://via.placeholder.com/150'
-                    }
-                    alt="Profile"
-                    style={{
-                        width: '150px',
-                        height: '150px',
-                        borderRadius: '50%',
-                        objectFit: 'cover',
-                        border: '2px solid #ccc'
-                    }}
-                />
+            setProfileUser(prev => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    followers: response.data.followers
+                };
+            });
+
+            setIsFollowing(!isFollowing);
+        } catch (error) {
+            console.error('Error following/unfollowing user:', error);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center min-h-[calc(100vh-64px)]">
+                <div className="w-12 h-12 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
             </div>
-            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                <h1
-                    style={{
-                        margin: '10px 0',
-                        fontSize: '24px',
-                        color: '#333'
-                    }}
-                >
-                    {profile.name}
-                </h1>
-                <p style={{ fontSize: '16px', color: '#666' }}>
-                    {profile.bio || 'No bio available'}
+        );
+    }
+
+    if (!profileUser) {
+        return (
+            <div className="container mx-auto px-4 py-8 text-center">
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                    User not found
+                </h2>
+                <p className="text-gray-600">
+                    The user you're looking for doesn't exist or has been
+                    removed.
                 </p>
             </div>
-            <div
-                style={{
-                    display: 'flex',
-                    justifyContent: 'space-around',
-                    marginTop: '20px'
-                }}
-            >
-                <div style={{ textAlign: 'center' }}>
-                    <h3
-                        style={{
-                            margin: '5px 0',
-                            fontSize: '20px',
-                            color: '#333'
-                        }}
-                    >
-                        {profile.followersCount}
-                    </h3>
-                    <p style={{ fontSize: '14px', color: '#666' }}>Followers</p>
+        );
+    }
+
+    const isCurrentUser = profileUser?._id === currentUser?._id;
+
+    return (
+        <div className="container mx-auto px-4 py-8">
+            <div className="max-w-4xl mx-auto">
+                <div className="mb-8">
+                    <ProfileCard
+                        isCurrentUser={isCurrentUser}
+                        userId={profileUser._id}
+                        name={profileUser.name}
+                        profileImage={profileUser.profileImage}
+                        designation={profileUser.designation}
+                        followers={profileUser.followers}
+                        following={profileUser.following}
+                        isFollowing={isFollowing}
+                        onFollow={!isCurrentUser ? handleFollow : undefined}
+                    />
                 </div>
-                <div style={{ textAlign: 'center' }}>
-                    <h3
-                        style={{
-                            margin: '5px 0',
-                            fontSize: '20px',
-                            color: '#333'
-                        }}
-                    >
-                        {profile.followingCount}
-                    </h3>
-                    <p style={{ fontSize: '14px', color: '#666' }}>Following</p>
+
+                <div className="border-b border-gray-300 mb-6">
+                    <h2 className="text-xl font-bold text-gray-800 pb-2">
+                        Posts
+                    </h2>
                 </div>
+
+                {userPosts.length > 0 ? (
+                    userPosts.map(post => (
+                        <PostCard
+                            key={post._id}
+                            postId={post._id}
+                            user={post.user}
+                            createdAt={post.createdAt}
+                            text={post.text}
+                            imageUrl={post.imageUrl}
+                            likes={post.likes}
+                            comments={post.comments}
+                            isFollowing={isFollowing}
+                            onFollow={!isCurrentUser ? handleFollow : undefined}
+                        />
+                    ))
+                ) : (
+                    <div className="bg-white rounded-lg shadow-md p-8 text-center">
+                        <h3 className="text-lg font-medium text-gray-800 mb-2">
+                            No posts yet
+                        </h3>
+                        <p className="text-gray-600">
+                            {isCurrentUser
+                                ? "You haven't created any posts yet. Start sharing with your network!"
+                                : "This user hasn't created any posts yet."}
+                        </p>
+                    </div>
+                )}
             </div>
         </div>
     );
 };
 
-export default Profile;
+const ProfileWithProvider = () => (
+    <PostProvider>
+        <Profile />
+    </PostProvider>
+);
+
+export default ProfileWithProvider;

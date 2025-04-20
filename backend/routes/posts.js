@@ -1,32 +1,78 @@
-const express = require('express');
+import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { protect } from '../middleware/auth.js';
+import Post from '../models/Post.js';
+import User from '../models/User.js';
+import { uploadImage, deleteImage } from '../utils/cloudinary.js';
+
 const router = express.Router();
-const Post = require('../models/Post');
-const Follow = require('../models/Follow');
-const { protect } = require('../middleware/auth');
-// const { cloudinary } = require('../utils/cloudinary');
-const multer = require('multer');
-const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
-const dotenv = require('dotenv');
-dotenv.config();
-
-// Configure Cloudinary storage
-cloudinary.config({
-    cloud_name: process.env.CLOUD_NAME,
-    api_key: process.env.API_KEY,
-    api_secret: process.env.SECRET_KEY
-});
-const storage = new CloudinaryStorage({
-    cloudinary: cloudinary,
-    params: {
-        folder: 'social_sphere_posts',
-        allowed_formats: ['jpg', 'jpeg', 'png']
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const tempDir = path.join(process.cwd(), 'temp');
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+        }
+        cb(null, tempDir);
+    },
+    filename: (req, file, cb) => {
+        cb(null, `${Date.now()}-${file.originalname}`);
     }
 });
 
-// ✅ Now create multer instance
-const upload = multer({ storage });
+const upload = multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    fileFilter: (req, file, cb) => {
+        const filetypes = /jpeg|jpg|png|gif/;
+        const mimetype = filetypes.test(file.mimetype);
+        const extname = filetypes.test(
+            path.extname(file.originalname).toLowerCase()
+        );
+
+        if (mimetype && extname) {
+            return cb(null, true);
+        }
+        cb(new Error('Only image files are allowed!'));
+    }
+});
+
+// @route   GET /api/posts
+// @desc    Get all posts
+// @access  Private
+router.get('/', protect, async (req, res) => {
+    try {
+        const posts = await Post.find()
+            .sort({ createdAt: -1 })
+            .populate('user', 'name profileImage')
+            .populate('comments.user', 'name profileImage');
+
+        res.json(posts);
+    } catch (error) {
+        console.error('Get posts error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// @route   GET /api/posts/user/:id
+// @desc    Get posts by user ID
+// @access  Private
+router.get('/user/:id', protect, async (req, res) => {
+    try {
+        const posts = await Post.find({ user: req.params.id })
+            .sort({ createdAt: -1 })
+            .populate('user', 'name profileImage')
+            .populate('comments.user', 'name profileImage');
+
+        res.json(posts);
+    } catch (error) {
+        console.error('Get user posts error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
 
 // @route   POST /api/posts
 // @desc    Create a new post
@@ -35,154 +81,32 @@ router.post('/', protect, upload.single('image'), async (req, res) => {
     try {
         const { text } = req.body;
 
-        if (!text) {
-            return res.status(400).json({
-                success: false,
-                message: 'Text is required'
-            });
-        }
-
         const newPost = new Post({
-            user: req.user._id,
             text,
-            image: req.file ? req.file.path : ''
+            user: req.user._id
         });
 
-        const post = await newPost.save();
+        // Handle image upload
+        if (req.file) {
+            const imageUrl = await uploadImage(req.file.path);
+            newPost.imageUrl = imageUrl;
 
-        // Populate user details
-        await post.populate('user', 'name username profilePicture');
-
-        res.status(201).json({
-            success: true,
-            data: post
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-});
-
-// @route   GET /api/posts
-// @desc    Get all posts for feed (posts from users the current user follows + own posts)
-// @access  Private
-router.get('/', protect, async (req, res) => {
-    try {
-        // Get IDs of users the current user follows
-        const following = await Follow.find({ follower: req.user._id }).select(
-            'following'
-        );
-        const followingIds = following.map(follow => follow.following);
-
-        // Add current user ID to get their posts too
-        followingIds.push(req.user._id);
-
-        // Get posts from followed users and current user
-        const posts = await Post.find({ user: { $in: followingIds } })
-            .sort({ createdAt: -1 })
-            .populate('user', 'name username profilePicture')
-            .populate('comments.user', 'name username profilePicture');
-
-        res.status(200).json({
-            success: true,
-            count: posts.length,
-            data: posts
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-});
-
-// @route get all posts
-// @desc get all post of all users and a single page maximum 10 post post will be displayed , pagination will be applied
-// @access public route
-// @only authentic user can follow or unfollow a user and that count will be displayed of that user
-
-router.get('/all', async (req, res) => {
-    try {
-        const page = parseInt(req.query.page) || 1; // Default to page 1
-        const limit = 10; // Maximum 10 posts per page
-        const skip = (page - 1) * limit;
-
-        // Get all posts with pagination
-        const posts = await Post.find()
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limit)
-            .populate('user', 'name username profilePicture')
-            .populate('comments.user', 'name username profilePicture');
-
-        // Get total post count for pagination metadata
-        const totalPosts = await Post.countDocuments();
-
-        res.status(200).json({
-            success: true,
-            count: posts.length,
-            totalPages: Math.ceil(totalPosts / limit),
-            currentPage: page,
-            data: posts
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-});
-
-// @route   GET /api/posts/user/:userId
-// @desc    Get all posts by a specific user
-// @access  Private
-router.get('/user/:userId', protect, async (req, res) => {
-    try {
-        const posts = await Post.find({ user: req.params.userId })
-            .sort({ createdAt: -1 })
-            .populate('user', 'name username profilePicture')
-            .populate('comments.user', 'name username profilePicture');
-
-        res.status(200).json({
-            success: true,
-            count: posts.length,
-            data: posts
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-});
-
-// @route   GET /api/posts/:id
-// @desc    Get a single post
-// @access  Private
-router.get('/:id', protect, async (req, res) => {
-    try {
-        const post = await Post.findById(req.params.id)
-            .populate('user', 'name username profilePicture')
-            .populate('comments.user', 'name username profilePicture');
-
-        if (!post) {
-            return res.status(404).json({
-                success: false,
-                message: 'Post not found'
-            });
+            // Delete temp file
+            fs.unlinkSync(req.file.path);
         }
 
-        res.status(200).json({
-            success: true,
-            data: post
-        });
+        await newPost.save();
+
+        // Populate user data before sending response
+        const populatedPost = await Post.findById(newPost._id).populate(
+            'user',
+            'name profileImage'
+        );
+
+        res.status(201).json(populatedPost);
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        console.error('Create post error:', error);
+        res.status(500).json({ message: 'Server error' });
     }
 });
 
@@ -194,79 +118,81 @@ router.delete('/:id', protect, async (req, res) => {
         const post = await Post.findById(req.params.id);
 
         if (!post) {
-            return res.status(404).json({
-                success: false,
-                message: 'Post not found'
-            });
+            return res.status(404).json({ message: 'Post not found' });
         }
 
         // Check if user owns the post
         if (post.user.toString() !== req.user._id.toString()) {
-            return res.status(401).json({
-                success: false,
-                message: 'Not authorized to delete this post'
-            });
+            return res.status(401).json({ message: 'User not authorized' });
         }
 
-        // Delete the post
+        // Delete image from Cloudinary if exists
+        if (post.imageUrl) {
+            await deleteImage(post.imageUrl);
+        }
+
         await post.deleteOne();
 
-        res.status(200).json({
-            success: true,
-            data: {}
-        });
+        res.json({ message: 'Post removed' });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        console.error('Delete post error:', error);
+        res.status(500).json({ message: 'Server error' });
     }
 });
 
-// @route   PUT /api/posts/:id/like
-// @desc    Like/unlike a post
+// @route   POST /api/posts/:id/like
+// @desc    Like a post
 // @access  Private
-router.put('/:id/like', protect, async (req, res) => {
+router.post('/:id/like', protect, async (req, res) => {
     try {
         const post = await Post.findById(req.params.id);
 
         if (!post) {
-            return res.status(404).json({
-                success: false,
-                message: 'Post not found'
-            });
+            return res.status(404).json({ message: 'Post not found' });
         }
 
-        // Check if the post has already been liked by this user
-        const isLiked = post.likes.some(
-            like => like.toString() === req.user._id.toString()
-        );
-
-        if (isLiked) {
-            // Unlike the post
-            post.likes = post.likes.filter(
-                like => like.toString() !== req.user._id.toString()
-            );
-        } else {
-            // Like the post
-            post.likes.push(req.user._id);
+        // Check if post already liked by the user
+        if (post.likes.includes(req.user._id)) {
+            return res.status(400).json({ message: 'Post already liked' });
         }
 
+        // Add user ID to likes array
+        post.likes.push(req.user._id);
         await post.save();
 
-        // Populate user details
-        await post.populate('user', 'name username profilePicture');
-        await post.populate('comments.user', 'name username profilePicture');
-
-        res.status(200).json({
-            success: true,
-            data: post
-        });
+        res.json({ likes: post.likes });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        console.error('Like post error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// @route   POST /api/posts/:id/unlike
+// @desc    Unlike a post
+// @access  Private
+router.post('/:id/unlike', protect, async (req, res) => {
+    try {
+        const post = await Post.findById(req.params.id);
+
+        if (!post) {
+            return res.status(404).json({ message: 'Post not found' });
+        }
+
+        // Check if post not liked by the user
+        if (!post.likes.includes(req.user._id)) {
+            return res.status(400).json({ message: 'Post not liked yet' });
+        }
+
+        // Remove user ID from likes array
+        post.likes = post.likes.filter(
+            id => id.toString() !== req.user._id.toString()
+        );
+        await post.save();
+
+        res.json({ likes: post.likes });
+    } catch (error) {
+        console.error('Unlike post error:', error);
+        res.status(500).json({ message: 'Server error' });
     }
 });
 
@@ -277,105 +203,37 @@ router.post('/:id/comment', protect, async (req, res) => {
     try {
         const { text } = req.body;
 
-        if (!text) {
-            return res.status(400).json({
-                success: false,
-                message: 'Comment text is required'
-            });
+        if (!text.trim()) {
+            return res
+                .status(400)
+                .json({ message: 'Comment text is required' });
         }
 
         const post = await Post.findById(req.params.id);
 
         if (!post) {
-            return res.status(404).json({
-                success: false,
-                message: 'Post not found'
-            });
+            return res.status(404).json({ message: 'Post not found' });
         }
 
-        // Add comment
-        post.comments.unshift({
-            user: req.user._id,
+        // Add comment to post
+        post.comments.push({
             text,
-            createdAt: Date.now()
+            user: req.user._id
         });
 
         await post.save();
 
-        // Populate user details
-        await post.populate('user', 'name username profilePicture');
-        await post.populate('comments.user', 'name username profilePicture');
+        // Populate user data for the new comment
+        const populatedPost = await Post.findById(post._id).populate(
+            'comments.user',
+            'name profileImage'
+        );
 
-        res.status(200).json({
-            success: true,
-            data: post
-        });
+        res.json({ comments: populatedPost.comments });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        console.error('Comment on post error:', error);
+        res.status(500).json({ message: 'Server error' });
     }
 });
 
-// @route   DELETE /api/posts/:id/comment/:commentId
-// @desc    Delete a comment
-// @access  Private
-router.delete('/:id/comment/:commentId', protect, async (req, res) => {
-    try {
-        const post = await Post.findById(req.params.id);
-
-        if (!post) {
-            return res.status(404).json({
-                success: false,
-                message: 'Post not found'
-            });
-        }
-
-        // Find the comment
-        const comment = post.comments.find(
-            comment => comment._id.toString() === req.params.commentId
-        );
-
-        if (!comment) {
-            return res.status(404).json({
-                success: false,
-                message: 'Comment not found'
-            });
-        }
-
-        // Check if user is the owner of the comment or the post
-        if (
-            comment.user.toString() !== req.user._id.toString() &&
-            post.user.toString() !== req.user._id.toString()
-        ) {
-            return res.status(401).json({
-                success: false,
-                message: 'Not authorized to delete this comment'
-            });
-        }
-
-        // Remove the comment
-        post.comments = post.comments.filter(
-            comment => comment._id.toString() !== req.params.commentId
-        );
-
-        await post.save();
-
-        // Populate user details
-        await post.populate('user', 'name username profilePicture');
-        await post.populate('comments.user', 'name username profilePicture');
-
-        res.status(200).json({
-            success: true,
-            data: post
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-});
-
-module.exports = router;
+export default router;

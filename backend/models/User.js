@@ -1,14 +1,12 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcrypt');
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 
 const UserSchema = new mongoose.Schema(
     {
-        username: {
+        name: {
             type: String,
-            unique: true,
-            trim: true,
-            minlength: 3,
-            maxlength: 20
+            required: true,
+            trim: true
         },
         email: {
             type: String,
@@ -22,28 +20,28 @@ const UserSchema = new mongoose.Schema(
             required: true,
             minlength: 6
         },
-        name: {
-            type: String,
-            required: true,
-            trim: true
-        },
-        bio: {
-            type: String,
-            default: '',
-            maxlength: 160
-        },
-        profilePicture: {
+        profileImage: {
             type: String,
             default: ''
         },
-        createdAt: {
-            type: Date,
-            default: Date.now
-        }
+        designation: {
+            type: String,
+            default: ''
+        },
+        followers: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'User'
+            }
+        ],
+        following: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'User'
+            }
+        ]
     },
-    {
-        timestamps: true
-    }
+    { timestamps: true }
 );
 
 // Hash password before saving
@@ -60,8 +58,23 @@ UserSchema.pre('save', async function (next) {
 });
 
 // Method to compare passwords
-UserSchema.methods.comparePassword = async function (candidatePassword) {
-    return await bcrypt.compare(candidatePassword, this.password);
+UserSchema.methods.comparePassword = async function (password) {
+    return await bcrypt.compare(password, this.password);
 };
 
-module.exports = mongoose.model('User', UserSchema);
+// Method to get user profile (for API responses)
+UserSchema.methods.getProfile = function () {
+    return {
+        _id: this._id,
+        name: this.name,
+        email: this.email,
+        profileImage: this.profileImage,
+        designation: this.designation,
+        followers: this.followers.length,
+        following: this.following.length
+    };
+};
+
+const User = mongoose.model('User', UserSchema);
+
+export default User;

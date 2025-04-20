@@ -1,27 +1,4 @@
-const mongoose = require('mongoose');
-
-const CommentSchema = new mongoose.Schema(
-    {
-        user: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User',
-            required: true
-        },
-        text: {
-            type: String,
-            required: true,
-            trim: true,
-            maxlength: 300
-        },
-        createdAt: {
-            type: Date,
-            default: Date.now
-        }
-    },
-    {
-        timestamps: true
-    }
-);
+import mongoose from 'mongoose';
 
 const PostSchema = new mongoose.Schema(
     {
@@ -33,10 +10,9 @@ const PostSchema = new mongoose.Schema(
         text: {
             type: String,
             required: true,
-            trim: true,
-            maxlength: 500
+            trim: true
         },
-        image: {
+        imageUrl: {
             type: String,
             default: ''
         },
@@ -46,15 +22,28 @@ const PostSchema = new mongoose.Schema(
                 ref: 'User'
             }
         ],
-        comments: [CommentSchema],
-        createdAt: {
-            type: Date,
-            default: Date.now
-        }
+        comments: [
+            {
+                user: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: 'User',
+                    required: true
+                },
+                text: {
+                    type: String,
+                    required: true,
+                    trim: true
+                },
+                createdAt: {
+                    type: Date,
+                    default: Date.now
+                }
+            }
+        ]
     },
-    {
-        timestamps: true
-    }
+    { timestamps: true }
 );
 
-module.exports = mongoose.model('Post', PostSchema);
+const Post = mongoose.model('Post', PostSchema);
+
+export default Post;

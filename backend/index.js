@@ -1,55 +1,64 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const path = require('path');
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/users');
-const postRoutes = require('./routes/posts');
-const followRoutes = require('./routes/follows');
-const searchRoutes = require('./routes/search');
-const bodyParser = require('body-parser');
-const morgan = require('morgan');
+import express from 'express';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import morgan from 'morgan';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import authRoutes from './routes/auth.js';
+import userRoutes from './routes/users.js';
+import postRoutes from './routes/posts.js';
 
 // Load environment variables
 dotenv.config();
 
-// Initialize Express app
+// Create Express app
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middlewares
-app.use(
-    cors({
-        origin: '*',
-        methods: ['GET', 'POST', 'PUT', 'DELETE'],
-        allowedHeaders: ['Content-Type', 'Authorization']
-    })
-);
+// Get current directory
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Middleware
+app.use(cors());
 app.use(express.json());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
-// Connect to MongoDB
-mongoose
-    .connect(process.env.MONGODB_URL)
-    .then(() => console.log('MongoDB connected'))
-    .catch(err => console.error('MongoDB connection error:', err));
+// Set static folder for production
+app.use(express.static(path.join(__dirname, '../dist')));
 
-// Routes
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/posts', postRoutes);
-app.use('/api/follows', followRoutes);
-app.use('/api/search', searchRoutes);
 
-// Basic route
-app.get('/', (req, res) => {
-    res.send('SocialSphere API is running');
+// Connect to MongoDB
+mongoose
+    .connect(process.env.MONGODB_URI)
+    .then(() => {
+        console.log('Connected to MongoDB');
+        app.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}`);
+        });
+    })
+    .catch(error => {
+        console.error('MongoDB connection error:', error);
+    });
+
+// Route for serving React app in production
+// app.get('*', (req, res) => {
+//     res.sendFile(path.join(__dirname, '../dist/index.html'));
+// });
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({
+        message: 'Something went wrong!',
+        error: process.env.NODE_ENV === 'development' ? err.message : {}
+    });
 });
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+export default app;
